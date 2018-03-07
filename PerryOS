@@ -1,0 +1,168 @@
+// ---------------------------------------------- //
+//                    PerryOS                     //
+//                  Build: 2.1                    //
+//                                                //
+//        PerryOS is an open source project       //
+//            developed by: projectperry          //
+//                                                // 
+//        This software is free of copyright      //
+//      Developed for "Arduino Nano ATMega328P"   //
+//                                                //
+//  For more detail visit https://www.arduino.cc/ //
+//     For more Info about this project visit     //
+//          https://iperry.000webhostapp.com      //
+// ---------------------------------------------- //
+
+// DFPLAYER MINI
+#include "SoftwareSerial.h"
+SoftwareSerial mySerial(11, 10); //RX-DfPlayer, TX-DfPlayer
+# define Start_Byte 0x7E
+# define Version_Byte 0xFF
+# define Command_Length 0x06
+# define End_Byte 0xEF
+# define Acknowledge 0x00 //Returns info with command 0x41 [0x01: info, 0x00: no info
+# define ACTIVATED LOW
+
+// LIBRERIE
+#include <Servo.h>
+
+// PIN
+const int S_RX = 5;
+const int S_TX = 6;
+const int Becco_PIN = 3;
+const int Coda_PIN = 9;
+const int motoreA = 5;
+const int motoreB = 6;
+
+// definizione oggetti
+Servo Becco;
+Servo Coda;
+
+// VARIABILI
+char msg;
+int Volume = 50;
+int angolo_becco = 45;
+int angolo_coda = 45;
+
+// PARAMETRI COMANDI
+const int tail = 116; //t
+const int beak = 115; //s
+
+int front = 102;
+int back = 98;
+int right = 114;
+int left = 108;
+
+void setup() {
+  // INIZIALIZZAZIONE COMUNICAZIONI SERIALI
+  Serial.begin(9600);    // COMUNICAZIONE SERIALE PC
+  mySerial.begin(9600);  // COMUNICAZIONE DFPLAYER
+
+  Becco.attach(Becco_PIN);
+  Coda.attach(Coda_PIN);
+
+  pinMode(motoreA , OUTPUT);
+  pinMode(motoreB , OUTPUT);
+  digitalWrite( motoreB , LOW);
+  digitalWrite( motoreA , LOW);
+}
+
+void loop() {
+  // LETTURA BLUETOOTH
+  if(Serial.available())
+  {
+    msg = Serial.read();
+    delay(50);
+    
+   /* if( Serial.read() != 0)
+    {
+      Serial.println(msg);
+      delay(50);
+    }*/
+    
+  }
+
+  // INTERPRETE COMANDI
+  if( msg == tail)
+  {
+    Coda.write(angolo_coda); //  <--- Valore angolo apertura coda
+    delay(500);
+    Coda.write(0);
+    msg = 0;
+  }
+
+  if( msg == beak)
+  {
+    Becco.write(angolo_becco);  //  <--- Valore angolo apertura becco
+    playFirst();
+    Becco.write(0);
+    pause();
+    msg = 0; 
+  }
+  
+  if( msg == front) // f
+  {
+   digitalWrite( motoreA , HIGH);
+   digitalWrite( motoreB , HIGH);
+  }
+
+    if( msg == right) // r
+  {
+   digitalWrite( motoreA , HIGH);
+   digitalWrite( motoreB , LOW);
+  }
+
+  if( msg == left) // l
+  {
+   digitalWrite( motoreA , LOW);
+   digitalWrite( motoreB , HIGH);
+  }
+
+    if( msg == back) // b
+  {
+   digitalWrite( motoreA , LOW);
+   digitalWrite( motoreB , LOW);
+  }
+}
+
+
+// DFPLAYER
+
+void pause()
+{
+  execute_CMD(0x0E,0,0);
+  delay(500);
+}
+
+void playFirst()
+{
+  execute_CMD(0x3F, 0, 0);
+  delay(500);
+  setVolume(Volume);   // VOLUME
+  delay(500);
+  execute_CMD(0x11,0,1); 
+  delay(500);
+}
+
+
+void setVolume(int volume)
+{
+  execute_CMD(0x06, 0, volume); // Set the volume (0x00~0x30)
+  delay(2000);
+}
+
+
+void execute_CMD(byte CMD, byte Par1, byte Par2)
+// Excecute the command and parameters
+{
+// Calculate the checksum (2 bytes)
+word checksum = -(Version_Byte + Command_Length + CMD + Acknowledge + Par1 + Par2);
+// Build the command line
+byte Command_line[10] = { Start_Byte, Version_Byte, Command_Length, CMD, Acknowledge,
+Par1, Par2, highByte(checksum), lowByte(checksum), End_Byte};
+//Send the command line to the module
+for (byte k=0; k<10; k++)
+{
+mySerial.write( Command_line[k]);
+}
+}
